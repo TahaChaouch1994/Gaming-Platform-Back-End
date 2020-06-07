@@ -2163,4 +2163,118 @@ app.post("/profil/abonnement/", (req, res) => {
       });
       });
 
+
+
+
+
+
+
+
+
+
+
+
+
+app.post("/replyreport/add", function(req, res)
+{
+  console.log(req.body);
+   var dbo = _database.db("geeks");
+    let title = req.body.title;
+    let description = req.body.description;
+    let sender = req.body.sender;
+	let reply = req.body.reply;
+	let adddate = req.body.addtime;
+	let state = req.body.state;
+    dbo.collection("replyreports").insertOne(req.body, function(err, res2)
+                {
+                    if (err) throw err;
+					res.json(req.body._id);
+                   console.log(req.body._id);
+                   
+                });
+});
+
+app.post("/replycoupon/add", function(req, res)
+{
+  console.log(req.body);
+   var dbo = _database.db("geeks");
+    let title = req.body.title;
+    let description = req.body.description;
+    let sender = req.body.sender;
+	let coupon = req.body.coupon;
+	let adddate = req.body.addtime;
+	let state = req.body.state;
+    dbo.collection("couponsreports").insertOne(req.body, function(err, res2)
+                {
+                    if (err) throw err;
+					res.json(req.body._id);
+                   console.log(req.body._id);
+                   
+                });
+});
+
+app.get("/ReplyReports/get", function(req, res)
+{
+    var dbo = _database.db("geeks");
+	let user = req.query.id;
+	dbo.collection("replyreports").find({}).toArray(function(err, result) 
+{
+	res.json(result);
+});
+});
+app.get("/BetReports/get", function(req, res)
+{
+    var dbo = _database.db("geeks");
+	let user = req.query.id;
+	dbo.collection("couponsreports").find({}).toArray(function(err, result) 
+{
+	res.json(result);
+});
+});
+
+
+
+
+app.delete("/post/remove", function(req, res) {
+	 var dbo = _database.db("geeks");
+	 let user = req.query.id;
+	 console.log(req.query);
+  var dbo = _database.db("geeks");
+	dbo.collection("forumpost").deleteOne({'_id': ObjectId(user)}, function(err, obj) 
+	{
+		if (err) throw err;
+		res.end();
+	});
+})
+
+
+
+
+app.get("/report/stateupdate", function(req, res)
+{
+var dbo = _database.db("geeks");
+	let post_id = req.query.id;	
+	let st = req.query.stt;
+console.log(req.query);
+	dbo.collection("replyreports").updateOne({'_id': ObjectId(post_id)}, { $set: {state: st} }, function(err, result) 
+	{
+		if (err) throw err;
+		res.json(result);
+	});
+});
+
+app.get("/user/banforum", function(req, res)
+{
+var dbo = _database.db("geeks");
+	let user = req.query.id;	
+	let st = req.query.stt;
+	
+console.log(req.query);
+	dbo.collection("user").updateOne({'_id': ObjectId(user)}, { $set: {forumstate: st} }, function(err, result) 
+	{
+		if (err) throw err;
+		res.json(result);
+	});
+});
+
 server.listen(1337);
