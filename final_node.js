@@ -57,6 +57,7 @@ passport.use(new SteamStrategy({
 ));
 
 var app = express();
+var checkoutArray = [];
 server = http.createServer(app);
 var io = require('socket.io').listen(server);
 const steam = new SteamAPI('3D8418EE8F1B7111B45A8BEB4F4D5610');
@@ -203,27 +204,43 @@ var incrementNonce = 0;
 
 function transferTokens(adrFrom, adrTo, privateKey, amount)
 {
-	let privateKeyBuffer = Buffer.from(privateKey, 'hex')
-	
-	web3.eth.getTransactionCount(adrFrom)
-	.then((count) => 
-	{		
-		let rawTransaction = {
-		  'from': adrFrom,
-		  'gasPrice': web3.utils.toHex(20 * 1e9),
-		  'gasLimit': web3.utils.toHex(210000),
-		  'to': tokenAddress,
-		  'value': 0x0,
-		  'data': contract.methods.transfer(adrTo, amount).encodeABI(),
-		  'nonce': web3.utils.toHex(count + incrementNonce)
-		};
-		let transaction = new Tx(rawTransaction, {'chain':'rinkeby'});
-		incrementNonce++;
-		transaction.sign(privateKeyBuffer);
-		web3.eth.sendSignedTransaction('0x' + transaction.serialize().toString('hex')).on('receipt', console.log)
-		
-	})
+	let obj = {"adrFrom": adrFrom, "adrTo": adrTo, "privateKey": privateKey, "amount": amount};
+	checkoutArray.push(obj);
 }
+
+setInterval(function()
+{
+	if ((checkoutArray[0] == null) || (checkoutArray[0] == undefined))
+	{
+		//console.log("Empty payment queue");
+	}
+	else
+	{
+		let obj = checkoutArray[0];
+		checkoutArray.splice(0, 1);
+		let privateKeyBuffer = Buffer.from(obj.privateKey, 'hex')
+	
+		web3.eth.getTransactionCount(obj.adrFrom)
+		.then((count) => 
+		{		
+			let rawTransaction= {
+				'from': obj.adrFrom,
+				'gasPrice': web3.utils.toHex(20 * 1e9),
+				'gasLimit': web3.utils.toHex(210000),
+				'to':tokenAddress,
+				'value': 0x0,
+				'data': contract.methods.transfer(obj.adrTo, obj.amount).encodeABI(),
+				'nonce': web3.utils.toHex(count) 
+			};    
+			
+			let transaction = new Tx(rawTransaction, {'chain':'rinkeby'});
+			incrementNonce++;
+			transaction.sign(privateKeyBuffer);
+			web3.eth.sendSignedTransaction('0x' + transaction.serialize().toString('hex')).on('receipt', console.log)
+		});
+	}
+//}, 60000*2);
+}, 1000*30);
 
 app.post("/user/register", function(req, res)
 {
@@ -520,6 +537,19 @@ app.get("/user/streamKey", function(req, res)
 		res.json(result);
 	});
 });
+
+app.get("/user/userstreamKey", function(req, res)
+{
+	var dbo = _database.db("geeks");
+	let key = req.query.key;
+	
+
+	dbo.collection("stream_keys").findOne({'streamKey': ObjectId(key)}, function(err, result) 
+	{
+		if (err) throw err;
+		res.json(result);
+	});
+})
 
 app.post("/user/resetStreamKey", function(req, res)
 {
@@ -861,11 +891,7 @@ app.post("/cart/buyMerch", function(req, res)
 							dbo.collection("orders").insertOne(req.body, function(err, result4) {
 								if (err) throw err;
 							});
-							q.timeout = 1000;
-							q.push(
-								function()
-								{
-									results.forEach(result =>
+							results.forEach(result =>
 									{
 								
 										let wantedQte = result["quantity"] - arr[result["_id"]];
@@ -880,17 +906,12 @@ app.post("/cart/buyMerch", function(req, res)
 										{
 											if (sellerResult.length > 0)
 											{
-												console.log("sending "+arr[result["_id"]] * result["price"]);
+												console.log("sending "+arr[result["_id"]] * result["price"] + " to " + sellerResult[0]["adr"]);
 												//transferTokens(adrFrom, adrTo, privateKey, amount)
 												transferTokens(result1[0]["adr"], sellerResult[0]["adr"], originalText, arr[result["_id"]] * result["price"]);
 											}
 										});
 									});
-								});
-							q.start(function (err) {
-							  if (err) throw err
-							  console.log('all done:')
-							})
 						}
 					});
 				});
@@ -1548,7 +1569,7 @@ app.get("/tournament/createtournament/:iduser/:gamename/:type/:tournamentname/:s
     let lastPrice = req.params.lastPrice;
 
 
-  
+  console.log("Samer");
   
   
     MongoClient.connect(url, function(err, db) {
@@ -2164,17 +2185,6 @@ app.post("/profil/abonnement/", (req, res) => {
       });
 
 
-
-
-
-
-
-
-
-
-
-
-
 app.post("/replyreport/add", function(req, res)
 {
   console.log(req.body);
@@ -2247,7 +2257,32 @@ app.delete("/post/remove", function(req, res) {
 	});
 })
 
+app.get("/report/stateupdate", function(req, res)
+{
+var dbo = _database.db("geeks");
+	let post_id = req.query.id;	
+	let st = req.query.stt;
+console.log(req.query);
+	dbo.collection("replyreports").updateOne({'_id': ObjectId(post_id)}, { $set: {state: st} }, function(err, result) 
+	{
+		if (err) throw err;
+		res.json(result);
+	});
+});
 
+app.get("/reportbet/stateupdate", function(req, res)
+{
+var dbo = _database.db("geeks");
+console.log(req.query.stt);
+	let post_id = req.query.id;	
+	let st = req.query.stt;
+console.log(req.query);
+	dbo.collection("couponsreports").updateOne({'_id': ObjectId(post_id)}, { $set: {state: st} }, function(err, result) 
+	{
+		if (err) throw err;
+		res.json(result);
+	});
+});
 
 
 app.get("/report/stateupdate", function(req, res)
@@ -2263,6 +2298,16 @@ console.log(req.query);
 	});
 });
 
+app.get("/bannedusers/get", function(req, res)
+{
+    var dbo = _database.db("geeks");
+	let user = req.query.id;
+	dbo.collection("user").find({"forumstate":user}).toArray(function(err, result) 
+{
+	res.json(result);
+});
+});
+
 app.get("/user/banforum", function(req, res)
 {
 var dbo = _database.db("geeks");
@@ -2276,5 +2321,40 @@ console.log(req.query);
 		res.json(result);
 	});
 });
+
+app.post("/contact/mail",function (req, res) {
+	console.log(req);
+	let sender = req.body.sendermail;	
+	let content = req.body.content;
+	let subject = req.body.subject;
+	let passwd = req.body.passworddd;
+  
+  var mailOptions = {
+		from: req.body.sendermail,
+		to: 'geeksoverflow@gmail.com',
+		subject: req.body.subject,
+		html: '<p>'+req.body.content+'</p>'// plain text body
+	};
+	
+	var transporterz = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: req.body.sendermail,
+    pass: req.body.passworddd
+  }
+});
+	transporterz.sendMail(mailOptions, function(error, info)
+	{
+		if (error) 
+		{
+		console.log(error);
+		} 
+		else 
+		{
+			console.log('Email sent: ' + info.response);
+		}
+	});
+  
+  }); 
 
 server.listen(1337);
